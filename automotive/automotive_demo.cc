@@ -91,11 +91,31 @@ DEFINE_double(stalled_cars_offset, 0,
               "The distance of the stalled cars, in meters, from the end of the lane.");
 DEFINE_double(stalled_cars_lane_delta, 0,
               "The change in offset distance in the left-adjacent lane.");
-DEFINE_string(stalled_cars_lanes, "", "//TODO");
-DEFINE_string(stalled_cars_xpos, "", "//TODO");
+DEFINE_string(stalled_cars_lanes, "",
+              "A comma-separated list of the lane indices of each stalled car. For "
+              "example, a 2-lane dragway with 2 stalled cars in each lane would be "
+              "specified by --stalled_cars_lanes=0,0,1,1. This option is only enabled "
+              "when the road is a dragway.");
+DEFINE_string(stalled_cars_xpos, "",
+              "A comma-separated list of the distance, in meters, of each stalled car "
+              "from x=0. This option is only enabled when the road is a dragway, and "
+              "must be specificed if --stalled_car_lanes is specified. In a 2-lane dragway "
+              "with 2 stalled cars, --stalled_cars_lanes=0,0,1,1 and --stalled_cars_xpos= "
+              "10,20,30,40 places two stalled cars in the rightmost lane (lane index=0) "
+              "at x=10 and x=20, and two stalled cars in the left lane (lane index=1) at "
+              "x=30 and x=40.");
 
-DEFINE_string(stop_lanes, "", "//TODO");
-DEFINE_string(stop_dist, "", "//TODO");
+DEFINE_string(stop_lanes, "",
+              "A comma-separated list specifying lane indices, such that trajectory cars "
+              "driving along these lanes will stop before the end of the lane. This option "
+              "is only enabled when the road is a dragway.");
+DEFINE_string(stop_dist, "",
+              "A comma-separated list of the distance, in meters from x=0, where each "
+              "trajectory car in stop_lanes should stop. For example, in a 3-lane dragway "
+              "with --num_trajectory_cars=3 --stop_lanes=0,2 --stop_dist=50,60, the trajectory "
+              "car in the rightmost lane will stop 50 meters from x=0 and the car in the "
+              "leftmost lane will stop 60 meters from x=0, while the car in the middle will "
+              "drive to the end of the lane.");
 
 
 namespace drake {
