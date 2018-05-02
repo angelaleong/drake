@@ -2,6 +2,7 @@
 #include <limits>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #include <gflags/gflags.h>
 
@@ -86,6 +87,16 @@ DEFINE_bool(onramp_swap_start, false, "Whether to swap the starting lanes of "
 DEFINE_bool(with_stalled_cars, false, "Places a stalled vehicle at the end of "
             "each lane of a dragway. This option is only enabled when the "
             "road is a dragway.");
+DEFINE_double(stalled_cars_offset, 0,
+              "The distance of the stalled cars, in meters, from the end of the lane.");
+DEFINE_double(stalled_cars_lane_delta, 0,
+              "The change in offset distance in the left-adjacent lane.");
+DEFINE_string(stalled_cars_lanes, "", "//TODO");
+DEFINE_string(stalled_cars_xpos, "", "//TODO");
+
+DEFINE_string(stop_lanes, "", "//TODO");
+DEFINE_string(stop_dist, "", "//TODO");
+
 
 namespace drake {
 
@@ -211,6 +222,28 @@ void AddVehicles(RoadNetworkType road_network_type,
     const maliput::dragway::RoadGeometry* dragway_road_geometry =
         dynamic_cast<const maliput::dragway::RoadGeometry*>(road_geometry);
     DRAKE_DEMAND(dragway_road_geometry != nullptr);
+    // create list of lanes in which a trajectory car should stop
+    std::string stop_lanes;
+    std::string stop_dist;
+    if (!FLAGS_stop_lanes.empty()) {
+        stop_lanes = FLAGS_stop_lanes;
+        stop_dist = FLAGS_stop_dist;
+    }
+    std::istringstream stop_lane_stream(stop_lanes);
+    std::vector<int> stop_lane_list;
+    std::string stop_lane;
+    while (getline(stop_lane_stream, stop_lane, ',')) {
+        stop_lane_list.push_back(std::stoi(stop_lane));
+    }
+    // create a list of distances (in meters), stored in stop_dist_list:
+    // stop_dist_list[i] is the distance from x=0 that the trajectory car
+    // in the i-th lane (from the right) of the dragway should stop
+    std::istringstream stop_dist_stream(stop_dist);
+    std::vector<double> stop_dist_list;
+    std::string dist;
+    while (getline(stop_dist_stream, dist, ',')) {
+        stop_dist_list.push_back(std::stod(dist));
+    }
     for (int i = 0; i < FLAGS_num_trajectory_car; ++i) {
       const int lane_index = i % FLAGS_num_dragway_lanes;
       const double speed = FLAGS_dragway_base_speed +
@@ -218,7 +251,7 @@ void AddVehicles(RoadNetworkType road_network_type,
       const double start_position = i / FLAGS_num_dragway_lanes *
            FLAGS_dragway_vehicle_spacing;
       const auto& params = CreateTrajectoryParamsForDragway(
-          *dragway_road_geometry, lane_index, speed, start_position);
+          *dragway_road_geometry, lane_index, speed, start_position, stop_lane_list, stop_dist_list);
       simulator->AddPriusTrajectoryCar("TrajectoryCar" + std::to_string(i),
                                        std::get<0>(params),
                                        std::get<1>(params),
@@ -257,18 +290,50 @@ void AddVehicles(RoadNetworkType road_network_type,
     AddMaliputRailcar(FLAGS_num_maliput_railcar, false /* IDM controlled */,
         initial_s_offset, dragway_road_geometry, simulator);
     if (FLAGS_with_stalled_cars) {
-      DRAKE_DEMAND(road_geometry != nullptr);
-      for (int i = 0; i < FLAGS_num_dragway_lanes; ++i) {
-        const Lane* lane = road_geometry->junction(0)->segment(0)->lane(i);
-        DRAKE_DEMAND(lane != nullptr);
-        const maliput::api::GeoPosition position = lane->ToGeoPosition(
-            {lane->length() /* s */, 0 /* r */, 0 /* h */});
-        SimpleCarState<double> state;
-        state.set_x(position.x());
-        state.set_y(position.y());
-        simulator->AddPriusSimpleCar("StalledCar" + std::to_string(i),
-            "StalledCarChannel" + std::to_string(i), state);
-      }
+        DRAKE_DEMAND(road_geometry != nullptr);
+        if (!FLAGS_stalled_cars_lanes.empty()) {
+            std::string stalled_cars_lanes = FLAGS_stalled_cars_lanes;
+            std::string stalled_cars_xpos = FLAGS_stalled_cars_xpos;
+            
+            std::istringstream stalled_cars_stream(stalled_cars_lanes);
+            std::vector<int> stalled_cars_lanes_list;
+            std::string stalled_car_lane_index;
+            while (getline(stalled_cars_stream, stalled_car_lane_index, ',')) {
+                stalled_cars_lanes_list.push_back(std::stoi(stalled_car_lane_index));
+            }
+            
+            std::istringstream stalled_cars_xpos_stream(stalled_cars_xpos);
+            std::vector<double> stalled_cars_xpos_list;
+            std::string stalled_car_xpos;
+            while (getline(stalled_cars_xpos_stream, stalled_car_xpos, ',')) {
+                stalled_cars_xpos_list.push_back(std::stod(stalled_car_xpos));
+            }
+            
+            for (int i = 0; i < static_cast<int>(stalled_cars_lanes_list.size()); ++i) {
+                int laneIndex = stalled_cars_lanes_list[i];
+                const Lane* lane = road_geometry->junction(0)->segment(0)->lane(laneIndex);
+                DRAKE_DEMAND(lane != nullptr);
+                const maliput::api::GeoPosition position = lane->ToGeoPosition(
+                    {lane->length() /* s */, 0 /* r */, 0 /* h */});
+                SimpleCarState<double> state;
+                state.set_x(stalled_cars_xpos_list[i]);
+                state.set_y(position.y());
+                simulator->AddPriusSimpleCar("StalledCar" + std::to_string(i),
+                                             "StalledCarChannel" + std::to_string(i), state);
+            }
+        } else {
+            for (int i = 0; i < FLAGS_num_dragway_lanes; ++i) {
+                const Lane* lane = road_geometry->junction(0)->segment(0)->lane(i);
+                DRAKE_DEMAND(lane != nullptr);
+                const maliput::api::GeoPosition position = lane->ToGeoPosition(
+                    {lane->length() /* s */, 0 /* r */, 0 /* h */});
+                SimpleCarState<double> state;
+                state.set_x(position.x() - FLAGS_stalled_cars_offset - i*FLAGS_stalled_cars_lane_delta);
+                state.set_y(position.y());
+                simulator->AddPriusSimpleCar("StalledCar" + std::to_string(i),
+                    "StalledCarChannel" + std::to_string(i), state);
+            }
+        }
     }
 
   } else if (road_network_type == RoadNetworkType::onramp) {

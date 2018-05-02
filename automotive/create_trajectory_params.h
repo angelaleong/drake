@@ -5,6 +5,7 @@
 
 #include <memory>
 #include <tuple>
+#include <vector>
 
 #include "drake/automotive/curve2.h"
 #include "drake/automotive/maliput/api/road_geometry.h"
@@ -40,7 +41,8 @@ std::tuple<Curve2<double>, double, double> CreateTrajectoryParams(int index);
  */
 std::tuple<Curve2<double>, double, double> CreateTrajectoryParamsForDragway(
     const maliput::dragway::RoadGeometry& road_geometry, int index,
-    double speed, double start_time);
+    double speed, double start_time,
+    std::vector<int> & stop_lane_list, std::vector<double> & stop_dist_list);
 
 }  // namespace automotive
 }  // namespace drake

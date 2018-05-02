@@ -76,7 +76,8 @@ std::tuple<Curve2<double>, double, double> CreateTrajectoryParams(int index) {
 
 std::tuple<Curve2<double>, double, double> CreateTrajectoryParamsForDragway(
     const maliput::dragway::RoadGeometry& road_geometry, int index,
-    double speed, double start_time) {
+    double speed, double start_time,
+    std::vector<int> & stop_lane_list, std::vector<double> & stop_dist_list) {
   const maliput::api::Segment* segment = road_geometry.junction(0)->segment(0);
   DRAKE_DEMAND(index < segment->num_lanes());
   const maliput::api::Lane* lane = segment->lane(index);
@@ -88,7 +89,14 @@ std::tuple<Curve2<double>, double, double> CreateTrajectoryParamsForDragway(
           lane->length() /* s */, 0 /* r */, 0 /* h */));
   std::vector<Curve2<double>::Point2> waypoints;
   waypoints.push_back({start_geo_position.x(), start_geo_position.y()});
-  waypoints.push_back({end_geo_position.x(), end_geo_position.y()});
+  int lane_dist_offset = find(stop_lane_list.begin(), stop_lane_list.end(), index) - stop_lane_list.begin();
+  if (lane_dist_offset < static_cast<int>(stop_dist_list.size())) {
+      std::cout << stop_dist_list[lane_dist_offset] << std::endl;
+      double stop_dist = stop_dist_list[lane_dist_offset];
+      waypoints.push_back({stop_dist, end_geo_position.y()});
+  } else {
+      waypoints.push_back({end_geo_position.x(), end_geo_position.y()});
+  }
   Curve2<double> curve(waypoints);
   return std::make_tuple(curve, speed, start_time);
 }
